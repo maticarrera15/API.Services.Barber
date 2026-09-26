@@ -1,0 +1,69 @@
+@host = http://localhost:5074
+@servicioId = 33333333-3333-3333-3333-333333333301
+@token = PEGAR_TOKEN
+
+GET {{host}}/health
+
+###
+POST {{host}}/api/auth/register
+Content-Type: application/json
+
+{
+  "nombre": "Ivan Roasso",
+  "email": "ivan@navaja.barber",
+  "password": "Clave1234",
+  "nombreSalon": "Navaja Barber Studio",
+  "ciudad": "Córdoba"
+}
+
+###
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "ivan@navaja.barber",
+  "password": "Clave1234"
+}
+
+###
+GET {{host}}/api/auth/me
+Authorization: Bearer {{token}}
+
+###
+GET {{host}}/api/agenda/mia
+Authorization: Bearer {{token}}
+
+###
+PUT {{host}}/api/salon
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "nombre": "Navaja Barber Studio",
+  "direccion": "Av. Colón 1842",
+  "ciudad": "Córdoba",
+  "telefono": "+54 351 555 0184"
+}
+
+###
+GET {{host}}/api/servicios
+
+###
+GET {{host}}/api/horarios
+
+###
+GET {{host}}/api/agenda
+
+###
+POST {{host}}/api/turnos
+Content-Type: application/json
+
+{
+  "fecha": "2026-09-15",
+  "hora": "12:00:00",
+  "servicioId": "{{servicioId}}",
+  "clienteNombre": "Agustín Demo",
+  "clienteEmail": "agustin@email.com",
+  "clienteTelefono": "351 555 0199",
+  "origen": "web"
+}
