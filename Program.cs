@@ -132,7 +132,8 @@ app.UseExceptionHandler(errorApp =>
     });
 });
 
-if (app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment() ||
+    app.Environment.IsEnvironment("Staging"))
 {
     app.UseSwagger();
     app.UseSwaggerUI();
