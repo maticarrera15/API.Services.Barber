@@ -15,6 +15,8 @@ public class BarberDbContext(DbContextOptions<BarberDbContext> options) : DbCont
     public DbSet<Turno> Turnos => Set<Turno>();
     public DbSet<TurnoFijo> TurnosFijos => Set<TurnoFijo>();
     public DbSet<Usuario> Usuarios => Set<Usuario>();
+    public DbSet<Notificacion> Notificaciones => Set<Notificacion>();
+    public DbSet<PushSuscripcion> PushSuscripciones => Set<PushSuscripcion>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -85,6 +87,19 @@ public class BarberDbContext(DbContextOptions<BarberDbContext> options) : DbCont
             e.ToTable("usuario");
             e.HasIndex(x => x.Email).IsUnique();
             e.HasOne(x => x.Profesional).WithMany().HasForeignKey(x => x.ProfesionalId);
+        });
+
+        modelBuilder.Entity<Notificacion>(e =>
+        {
+            e.ToTable("notificacion");
+            e.HasOne(x => x.Turno).WithMany().HasForeignKey(x => x.TurnoId);
+        });
+
+        modelBuilder.Entity<PushSuscripcion>(e =>
+        {
+            e.ToTable("push_suscripcion");
+            e.Property(x => x.P256dh).HasColumnName("p256dh");
+            e.HasIndex(x => x.Endpoint).IsUnique();
         });
     }
 }

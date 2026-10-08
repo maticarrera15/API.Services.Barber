@@ -2,6 +2,8 @@ using System.Security.Claims;
 using Api.Services.Barber.Common;
 using Api.Services.Barber.Data;
 using Api.Services.Barber.Domain;
+using Api.Services.Barber.Features.Notificaciones;
+using Api.Services.Barber.Features.Push;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -74,7 +76,13 @@ public static class TurnosEndpoints
         return item is null ? HttpErrors.NotFound("Turno no encontrado.") : Results.Ok(item.ToDto());
     }
 
-    private static async Task<IResult> Crear(CrearTurnoRequest body, BarberDbContext db, IOptions<AppOptions> options, CancellationToken ct)
+    private static async Task<IResult> Crear(
+        CrearTurnoRequest body,
+        ClaimsPrincipal user,
+        BarberDbContext db,
+        IOptions<AppOptions> options,
+        PushQueue pushQueue,
+        CancellationToken ct)
     {
         var validacion = ContactValidation.ValidateCliente(body.ClienteNombre, body.ClienteEmail, body.ClienteTelefono);
         if (validacion is not null) return validacion;
@@ -123,6 +131,12 @@ public static class TurnosEndpoints
 
         db.Turnos.Add(turno);
 
+        // Solo las reservas de clientes (sin sesión de profesional) generan aviso.
+        var notificacion = CurrentUser.Get(user) is null
+            ? NotificacionesFactory.TurnoSolicitado(turno, cliente.Nombre, servicio.Nombre)
+            : null;
+        if (notificacion is not null) db.Notificaciones.Add(notificacion);
+
         try
         {
             await db.SaveChangesAsync(ct);
@@ -130,6 +144,13 @@ public static class TurnosEndpoints
         catch (DbUpdateException ex) when (ex.Is(PostgresErrors.ExclusionViolation))
         {
             return HttpErrors.Conflict("Ese horario ya está ocupado.");
+        }
+
+        if (notificacion is not null)
+        {
+            pushQueue.Encolar(new PushTrabajo(
+                turno.ProfesionalId,
+                new PushPayload(notificacion.Titulo, notificacion.Detalle ?? "", "/turnos", $"turno-{turno.Id}")));
         }
 
         await db.Entry(turno).Reference(t => t.Cliente).LoadAsync(ct);
@@ -174,10 +195,12 @@ public static class TurnosEndpoints
             turno.Fin = turno.Inicio.AddMinutes(turno.DuracionMin);
         }
 
+        var resolvioPendiente = false;
         if (body.EstadoId.HasValue && body.EstadoId != turno.EstadoId)
         {
             var estado = await db.EstadosTurno.FirstOrDefaultAsync(e => e.Id == body.EstadoId, ct);
             if (estado is null) return HttpErrors.Validation("Estado inválido.");
+            resolvioPendiente = turno.EstadoId == EstadoTurno.Pendiente;
             turno.EstadoId = estado.Id;
             turno.Estado = estado;
             if (estado.Id == EstadoTurno.Confirmado) turno.ConfirmadoAt ??= DateTimeOffset.UtcNow;
@@ -197,6 +220,8 @@ public static class TurnosEndpoints
         {
             return HttpErrors.Conflict("Ese horario ya está ocupado.");
         }
+
+        if (resolvioPendiente) await NotificacionesFactory.MarcarLeidasPorTurnoAsync(db, turno.Id, ct);
 
         return Results.Ok(turno.ToDto());
     }
@@ -218,6 +243,7 @@ public static class TurnosEndpoints
         turno.EstadoId = EstadoTurno.Cancelado;
         turno.CanceladoAt ??= DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(ct);
+        await NotificacionesFactory.MarcarLeidasPorTurnoAsync(db, turno.Id, ct);
         await db.Entry(turno).Reference(t => t.Estado).LoadAsync(ct);
         return Results.Ok(turno.ToDto());
     }

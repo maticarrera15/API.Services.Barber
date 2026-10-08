@@ -21,12 +21,13 @@ public static class SalonEndpoints
     private static async Task<IResult> ObtenerPublico(
         BarberDbContext db,
         IOptions<AppOptions> options,
+        Guid? id,
         string? slug,
         CancellationToken ct)
     {
-        var salon = string.IsNullOrWhiteSpace(slug)
-            ? await db.Salones.AsNoTracking().FirstOrDefaultAsync(s => s.Id == options.Value.DefaultSalonId, ct)
-            : await db.Salones.AsNoTracking().FirstOrDefaultAsync(s => s.Slug == slug, ct);
+        var salon = !string.IsNullOrWhiteSpace(slug)
+            ? await db.Salones.AsNoTracking().FirstOrDefaultAsync(s => s.Slug == slug, ct)
+            : await db.Salones.AsNoTracking().FirstOrDefaultAsync(s => s.Id == (id ?? options.Value.DefaultSalonId), ct);
 
         return salon is null ? HttpErrors.NotFound("Salón no encontrado.") : Results.Ok(salon.ToDto());
     }

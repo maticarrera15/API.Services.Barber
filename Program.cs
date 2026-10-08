@@ -6,7 +6,9 @@ using Api.Services.Barber.Domain;
 using Api.Services.Barber.Features.Agenda;
 using Api.Services.Barber.Features.Auth;
 using Api.Services.Barber.Features.Horarios;
+using Api.Services.Barber.Features.Notificaciones;
 using Api.Services.Barber.Features.Profesionales;
+using Api.Services.Barber.Features.Push;
 using Api.Services.Barber.Features.Salon;
 using Api.Services.Barber.Features.Servicios;
 using Api.Services.Barber.Features.Turnos;
@@ -22,6 +24,10 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.Configure<AppOptions>(builder.Configuration.GetSection(AppOptions.SectionName));
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
 builder.Services.AddSingleton<JwtTokenService>();
+builder.Services.Configure<PushOptions>(builder.Configuration.GetSection(PushOptions.SectionName));
+builder.Services.AddHttpClient<PushSender>(c => c.Timeout = TimeSpan.FromSeconds(10));
+builder.Services.AddSingleton<PushQueue>();
+builder.Services.AddHostedService<PushWorker>();
 
 builder.Services.ConfigureHttpJsonOptions(o =>
 {
@@ -107,7 +113,8 @@ builder.Services.AddCors(options =>
     options.AddPolicy("front", policy =>
         policy.WithOrigins(origins)
             .AllowAnyHeader()
-            .AllowAnyMethod());
+            .AllowAnyMethod()
+            .SetPreflightMaxAge(TimeSpan.FromHours(2)));
 });
 
 var app = builder.Build();
@@ -158,5 +165,7 @@ app.MapHorariosEndpoints();
 app.MapTurnosEndpoints();
 app.MapTurnosFijosEndpoints();
 app.MapAgendaEndpoints();
+app.MapNotificacionesEndpoints();
+app.MapPushEndpoints();
 
 app.Run();

@@ -20,6 +20,17 @@ public static class SalonTime
     public static TimeOnly ToHora(DateTimeOffset instant) =>
         TimeOnly.FromDateTime(TimeZoneInfo.ConvertTime(instant, Zone).DateTime);
 
+    private static readonly string[] DiasCortos = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
+    private static readonly string[] MesesCortos = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+
+    /// <summary>Ej. "vie 3 oct · 19:00". Sin depender de la cultura instalada en el contenedor.</summary>
+    public static string FormatCorto(DateTimeOffset instant)
+    {
+        var fecha = ToFecha(instant);
+        var hora = ToHora(instant);
+        return $"{DiasCortos[(int)fecha.DayOfWeek]} {fecha.Day} {MesesCortos[fecha.Month - 1]} · {hora:HH\\:mm}";
+    }
+
     public static DateOnly Today() =>
         DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, Zone).DateTime);
 
