@@ -8,4 +8,5 @@ public class JwtOptions
     public string Audience { get; set; } = "TurnosBarber";
     public string Key { get; set; } = default!;
     public int ExpiresMinutes { get; set; } = 480;
+    public int ClienteExpiresMinutes { get; set; } = 60 * 24 * 7;
 }

@@ -23,6 +23,7 @@ public static class CurrentUser
             ?? user.FindFirstValue(JwtRegisteredClaimNames.Email)
             ?? "";
         var rol = user.FindFirstValue(RolClaim) ?? user.FindFirstValue(ClaimTypes.Role) ?? "profesional";
+        if (rol == CurrentCliente.Rol) return null;
 
         if (!Guid.TryParse(userId, out var uid)
             || !Guid.TryParse(profesionalId, out var pid)

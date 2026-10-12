@@ -1,10 +1,12 @@
 using System.Text;
 using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
 using Api.Services.Barber.Common;
 using Api.Services.Barber.Data;
 using Api.Services.Barber.Domain;
 using Api.Services.Barber.Features.Agenda;
 using Api.Services.Barber.Features.Auth;
+using Api.Services.Barber.Features.Clientes;
 using Api.Services.Barber.Features.Horarios;
 using Api.Services.Barber.Features.Notificaciones;
 using Api.Services.Barber.Features.Profesionales;
@@ -14,6 +16,7 @@ using Api.Services.Barber.Features.Servicios;
 using Api.Services.Barber.Features.Turnos;
 using Api.Services.Barber.Features.TurnosFijos;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -67,6 +70,39 @@ builder.Services
     });
 builder.Services.AddAuthorization();
 
+// Render (y la mayoría de los hosts) ponen un proxy adelante: la IP real viene en X-Forwarded-For.
+builder.Services.Configure<ForwardedHeadersOptions>(o =>
+{
+    o.ForwardedHeaders = ForwardedHeaders.XForwardedFor;
+    o.ForwardLimit = 1;
+    o.KnownNetworks.Clear();
+    o.KnownProxies.Clear();
+});
+
+builder.Services.AddRateLimiter(o =>
+{
+    o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    o.AddPolicy(ClienteAuthEndpoints.RateLimitPolicy, context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "desconocida",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 10,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
+    o.OnRejected = async (context, ct) =>
+    {
+        context.HttpContext.Response.ContentType = "application/problem+json";
+        await context.HttpContext.Response.WriteAsJsonAsync(new
+        {
+            title = "Demasiados intentos",
+            status = StatusCodes.Status429TooManyRequests,
+            detail = "Hiciste muchos intentos seguidos. Esperá un minuto y volvé a probar."
+        }, ct);
+    };
+});
+
 builder.Services.AddProblemDetails();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(o =>
@@ -119,6 +155,8 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+app.UseForwardedHeaders();
+
 app.UseExceptionHandler(errorApp =>
 {
     errorApp.Run(async context =>
@@ -153,11 +191,14 @@ else
 app.UseCors("front");
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }))
     .WithTags("Health");
 
 app.MapAuthEndpoints();
+app.MapClienteAuthEndpoints();
+app.MapMiCuentaEndpoints();
 app.MapSalonEndpoints();
 app.MapProfesionalEndpoints();
 app.MapServiciosEndpoints();

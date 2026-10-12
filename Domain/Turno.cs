@@ -16,6 +16,7 @@ public class Turno
     public OrigenTurno Origen { get; set; } = OrigenTurno.web;
     public DateTimeOffset? ConfirmadoAt { get; set; }
     public DateTimeOffset? CanceladoAt { get; set; }
+    public Guid? CuentaId { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 

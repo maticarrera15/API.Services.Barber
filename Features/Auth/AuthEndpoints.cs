@@ -13,8 +13,8 @@ public static class AuthEndpoints
     {
         var group = app.MapGroup("/api/auth").WithTags("Auth");
 
-        group.MapPost("/register", Registrar);
-        group.MapPost("/login", Login);
+        group.MapPost("/register", Registrar).RequireRateLimiting(ClienteAuthEndpoints.RateLimitPolicy);
+        group.MapPost("/login", Login).RequireRateLimiting(ClienteAuthEndpoints.RateLimitPolicy);
         group.MapGet("/me", Me).RequireAuthorization();
 
         return app;
