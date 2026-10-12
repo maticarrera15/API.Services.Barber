@@ -84,7 +84,18 @@ public static class TurnosEndpoints
         PushQueue pushQueue,
         CancellationToken ct)
     {
-        var validacion = ContactValidation.ValidateCliente(body.ClienteNombre, body.ClienteEmail, body.ClienteTelefono);
+        ClienteCuenta? cuenta = null;
+        var sesionCliente = CurrentCliente.Get(user);
+        if (sesionCliente is not null)
+        {
+            cuenta = await db.ClienteCuentas
+                .Include(c => c.Cliente)
+                .FirstOrDefaultAsync(c => c.Id == sesionCliente.CuentaId && c.Activo, ct);
+            if (cuenta is null) return HttpErrors.Unauthorized("Tu sesión expiró. Volvé a iniciar sesión.");
+        }
+
+        // Con sesión de cliente el email sale de la cuenta, no del formulario.
+        var validacion = ContactValidation.ValidateCliente(body.ClienteNombre, cuenta?.Email ?? body.ClienteEmail, body.ClienteTelefono);
         if (validacion is not null) return validacion;
 
         var profesionalId = body.ProfesionalId ?? options.Value.DefaultProfesionalId;
@@ -94,7 +105,18 @@ public static class TurnosEndpoints
         var servicio = await db.Servicios.FirstOrDefaultAsync(s => s.Id == body.ServicioId && s.Activo, ct);
         if (servicio is null) return HttpErrors.NotFound("Servicio no encontrado.");
 
-        var cliente = await ObtenerOCrearCliente(db, body.ClienteNombre, body.ClienteEmail, body.ClienteTelefono, ct);
+        Cliente cliente;
+        if (cuenta is not null)
+        {
+            cliente = cuenta.Cliente;
+            cliente.Nombre = body.ClienteNombre.Trim();
+            if (!string.IsNullOrWhiteSpace(body.ClienteTelefono)) cliente.Telefono = body.ClienteTelefono.Trim();
+        }
+        else
+        {
+            cliente = await ObtenerOCrearCliente(db, body.ClienteNombre, body.ClienteEmail, body.ClienteTelefono, ct);
+        }
+
         var inicio = SalonTime.ToInstant(body.Fecha, body.Hora);
         var fin = inicio.AddMinutes(servicio.DuracionMin);
         if (fin <= inicio) return HttpErrors.Validation("El rango horario es inválido.");
@@ -126,7 +148,8 @@ public static class TurnosEndpoints
             PrecioCentavos = servicio.PrecioCentavos,
             DuracionMin = servicio.DuracionMin,
             Notas = body.Notas?.Trim(),
-            Origen = body.Origen ?? OrigenTurno.web
+            Origen = body.Origen ?? OrigenTurno.web,
+            CuentaId = cuenta?.Id
         };
 
         db.Turnos.Add(turno);
@@ -262,8 +285,13 @@ public static class TurnosEndpoints
         var existente = await db.Clientes.FirstOrDefaultAsync(c => c.Email == normalized, ct);
         if (existente is not null)
         {
-            existente.Nombre = nombre.Trim();
-            if (!string.IsNullOrWhiteSpace(telefono)) existente.Telefono = telefono.Trim();
+            // Si el email ya tiene cuenta, sus datos los edita solo el dueño desde "Mis datos".
+            var tieneCuenta = await db.ClienteCuentas.AnyAsync(c => c.ClienteId == existente.Id, ct);
+            if (!tieneCuenta)
+            {
+                existente.Nombre = nombre.Trim();
+                if (!string.IsNullOrWhiteSpace(telefono)) existente.Telefono = telefono.Trim();
+            }
             return existente;
         }
 
@@ -322,7 +350,7 @@ public record TurnoDto(
     string ServicioNombre,
     string ProfesionalNombre);
 
-file static class TurnoMapping
+internal static class TurnoMapping
 {
     public static TurnoDto ToDto(this Turno t) =>
         new(

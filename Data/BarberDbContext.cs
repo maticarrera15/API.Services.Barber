@@ -15,6 +15,7 @@ public class BarberDbContext(DbContextOptions<BarberDbContext> options) : DbCont
     public DbSet<Turno> Turnos => Set<Turno>();
     public DbSet<TurnoFijo> TurnosFijos => Set<TurnoFijo>();
     public DbSet<Usuario> Usuarios => Set<Usuario>();
+    public DbSet<ClienteCuenta> ClienteCuentas => Set<ClienteCuenta>();
     public DbSet<Notificacion> Notificaciones => Set<Notificacion>();
     public DbSet<PushSuscripcion> PushSuscripciones => Set<PushSuscripcion>();
 
@@ -72,6 +73,15 @@ public class BarberDbContext(DbContextOptions<BarberDbContext> options) : DbCont
             e.HasOne(x => x.Profesional).WithMany().HasForeignKey(x => x.ProfesionalId);
             e.HasOne(x => x.Servicio).WithMany().HasForeignKey(x => x.ServicioId);
             e.HasOne(x => x.Estado).WithMany().HasForeignKey(x => x.EstadoId);
+            e.HasOne<ClienteCuenta>().WithMany().HasForeignKey(x => x.CuentaId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<ClienteCuenta>(e =>
+        {
+            e.ToTable("cliente_cuenta");
+            e.HasIndex(x => x.Email).IsUnique();
+            e.HasIndex(x => x.ClienteId).IsUnique();
+            e.HasOne(x => x.Cliente).WithMany().HasForeignKey(x => x.ClienteId);
         });
 
         modelBuilder.Entity<TurnoFijo>(e =>
