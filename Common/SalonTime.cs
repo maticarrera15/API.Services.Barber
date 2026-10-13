@@ -31,6 +31,17 @@ public static class SalonTime
         return $"{DiasCortos[(int)fecha.DayOfWeek]} {fecha.Day} {MesesCortos[fecha.Month - 1]} · {hora:HH\\:mm}";
     }
 
+    private static readonly string[] DiasLargos = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+    private static readonly string[] MesesLargos =
+        ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+
+    /// <summary>Ej. "Martes 13 de octubre".</summary>
+    public static string FormatFechaLarga(DateTimeOffset instant)
+    {
+        var fecha = ToFecha(instant);
+        return $"{DiasLargos[(int)fecha.DayOfWeek]} {fecha.Day} de {MesesLargos[fecha.Month - 1]}";
+    }
+
     public static DateOnly Today() =>
         DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, Zone).DateTime);
 
