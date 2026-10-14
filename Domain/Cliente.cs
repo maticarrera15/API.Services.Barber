@@ -7,6 +7,7 @@ public class Cliente
     public string Email { get; set; } = default!;
     public string? Telefono { get; set; }
     public Guid? AuthUserId { get; set; }
+    public DateTimeOffset? EmailRebotadoAt { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 }

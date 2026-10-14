@@ -18,6 +18,7 @@ public class BarberDbContext(DbContextOptions<BarberDbContext> options) : DbCont
     public DbSet<ClienteCuenta> ClienteCuentas => Set<ClienteCuenta>();
     public DbSet<Notificacion> Notificaciones => Set<Notificacion>();
     public DbSet<PushSuscripcion> PushSuscripciones => Set<PushSuscripcion>();
+    public DbSet<NotificacionEmail> NotificacionesEmail => Set<NotificacionEmail>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -110,6 +111,13 @@ public class BarberDbContext(DbContextOptions<BarberDbContext> options) : DbCont
             e.ToTable("push_suscripcion");
             e.Property(x => x.P256dh).HasColumnName("p256dh");
             e.HasIndex(x => x.Endpoint).IsUnique();
+        });
+
+        modelBuilder.Entity<NotificacionEmail>(e =>
+        {
+            e.ToTable("notificacion_email");
+            e.HasIndex(x => new { x.TurnoId, x.Tipo }).IsUnique();
+            e.HasOne(x => x.Turno).WithMany().HasForeignKey(x => x.TurnoId);
         });
     }
 }

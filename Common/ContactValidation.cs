@@ -64,6 +64,18 @@ public static class ContactValidation
     public static string DigitsOnly(string value) =>
         string.Concat(value.Where(char.IsDigit));
 
+    /// <summary>Número para WhatsApp (54 9 área número en Argentina); null si no sirve.</summary>
+    public static string? ToWhatsappNumber(string? telefono)
+    {
+        if (string.IsNullOrWhiteSpace(telefono)) return null;
+        var raw = telefono.Trim();
+        var digits = DigitsOnly(raw);
+        if (digits.Length is < 8 or > 15) return null;
+        if (!LooksArgentine(digits, raw.StartsWith('+'))) return digits;
+        var national = NormalizeArgentineNational(digits);
+        return national.Length == 10 ? $"549{national}" : null;
+    }
+
     private static bool LooksArgentine(string digits, bool hasPlus)
     {
         if (digits.StartsWith("54", StringComparison.Ordinal)) return true;

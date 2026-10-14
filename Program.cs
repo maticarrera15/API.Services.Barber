@@ -7,7 +7,9 @@ using Api.Services.Barber.Domain;
 using Api.Services.Barber.Features.Agenda;
 using Api.Services.Barber.Features.Auth;
 using Api.Services.Barber.Features.Clientes;
+using Api.Services.Barber.Features.Email;
 using Api.Services.Barber.Features.Horarios;
+using Api.Services.Barber.Features.Jobs;
 using Api.Services.Barber.Features.Notificaciones;
 using Api.Services.Barber.Features.Profesionales;
 using Api.Services.Barber.Features.Push;
@@ -28,9 +30,19 @@ builder.Services.Configure<AppOptions>(builder.Configuration.GetSection(AppOptio
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
 builder.Services.AddSingleton<JwtTokenService>();
 builder.Services.Configure<PushOptions>(builder.Configuration.GetSection(PushOptions.SectionName));
-builder.Services.AddHttpClient<PushSender>(c => c.Timeout = TimeSpan.FromSeconds(10));
+builder.Services.AddHttpClient<PushSender>(c => c.Timeout = TimeSpan.FromSeconds(10))
+    .ConfigurePrimaryHttpMessageHandler(OutboundHttp.CreateHandler);
 builder.Services.AddSingleton<PushQueue>();
 builder.Services.AddHostedService<PushWorker>();
+builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection(EmailOptions.SectionName));
+builder.Services.Configure<ResendOptions>(builder.Configuration.GetSection(ResendOptions.SectionName));
+builder.Services.AddHttpClient<ResendEmailSender>(c => c.Timeout = TimeSpan.FromSeconds(15))
+    .ConfigurePrimaryHttpMessageHandler(OutboundHttp.CreateHandler);
+builder.Services.AddSingleton<EmailQueue>();
+builder.Services.AddScoped<EmailDispatcher>();
+builder.Services.AddHostedService<EmailWorker>();
+builder.Services.AddScoped<RecordatoriosJob>();
+builder.Services.Configure<JobsOptions>(builder.Configuration.GetSection(JobsOptions.SectionName));
 
 builder.Services.ConfigureHttpJsonOptions(o =>
 {
@@ -208,5 +220,7 @@ app.MapTurnosFijosEndpoints();
 app.MapAgendaEndpoints();
 app.MapNotificacionesEndpoints();
 app.MapPushEndpoints();
+app.MapJobsEndpoints();
+app.MapResendWebhookEndpoints();
 
 app.Run();

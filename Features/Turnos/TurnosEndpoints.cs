@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Api.Services.Barber.Common;
 using Api.Services.Barber.Data;
 using Api.Services.Barber.Domain;
+using Api.Services.Barber.Features.Email;
 using Api.Services.Barber.Features.Notificaciones;
 using Api.Services.Barber.Features.Push;
 using Microsoft.EntityFrameworkCore;
@@ -184,7 +185,13 @@ public static class TurnosEndpoints
         return Results.Created($"/api/turnos/{turno.Id}", turno.ToDto());
     }
 
-    private static async Task<IResult> Actualizar(Guid id, ClaimsPrincipal user, ActualizarTurnoRequest body, BarberDbContext db, CancellationToken ct)
+    private static async Task<IResult> Actualizar(
+        Guid id,
+        ClaimsPrincipal user,
+        ActualizarTurnoRequest body,
+        BarberDbContext db,
+        EmailDispatcher emails,
+        CancellationToken ct)
     {
         var denied = CurrentUser.Require(user, out var principal);
         if (denied is not null) return denied;
@@ -219,11 +226,13 @@ public static class TurnosEndpoints
         }
 
         var resolvioPendiente = false;
+        var seConfirmo = false;
         if (body.EstadoId.HasValue && body.EstadoId != turno.EstadoId)
         {
             var estado = await db.EstadosTurno.FirstOrDefaultAsync(e => e.Id == body.EstadoId, ct);
             if (estado is null) return HttpErrors.Validation("Estado inválido.");
             resolvioPendiente = turno.EstadoId == EstadoTurno.Pendiente;
+            seConfirmo = estado.Id == EstadoTurno.Confirmado;
             turno.EstadoId = estado.Id;
             turno.Estado = estado;
             if (estado.Id == EstadoTurno.Confirmado) turno.ConfirmadoAt ??= DateTimeOffset.UtcNow;
@@ -245,6 +254,7 @@ public static class TurnosEndpoints
         }
 
         if (resolvioPendiente) await NotificacionesFactory.MarcarLeidasPorTurnoAsync(db, turno.Id, ct);
+        if (seConfirmo) await emails.ProgramarAsync(turno, NotificacionEmail.TipoConfirmacion, ct);
 
         return Results.Ok(turno.ToDto());
     }
