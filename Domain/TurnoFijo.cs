@@ -17,6 +17,8 @@ public class TurnoFijo
     public short DiaSemana { get; set; }
     public TimeOnly Hora { get; set; }
     public int DuracionMin { get; set; } = 45;
+    /// <summary>Precio acordado del fijo (centavos). Null = precio del servicio vinculado.</summary>
+    public int? PrecioCentavos { get; set; }
     public bool Activo { get; set; } = true;
     public string? Notas { get; set; }
     public DateTimeOffset CreatedAt { get; set; }

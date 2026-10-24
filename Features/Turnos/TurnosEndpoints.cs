@@ -95,8 +95,15 @@ public static class TurnosEndpoints
             if (cuenta is null) return HttpErrors.Unauthorized("Tu sesión expiró. Volvé a iniciar sesión.");
         }
 
-        // Con sesión de cliente el email sale de la cuenta, no del formulario.
-        var validacion = ContactValidation.ValidateCliente(body.ClienteNombre, cuenta?.Email ?? body.ClienteEmail, body.ClienteTelefono);
+        // El profesional puede agendar sin email (nombre + teléfono). El cliente público sí lo necesita.
+        var esPro = CurrentUser.Get(user) is not null;
+        var emailParaValidar = cuenta?.Email ?? body.ClienteEmail;
+        var validacion = ContactValidation.ValidateCliente(
+            body.ClienteNombre,
+            emailParaValidar,
+            body.ClienteTelefono,
+            telefonoObligatorio: true,
+            emailObligatorio: !esPro || cuenta is not null);
         if (validacion is not null) return validacion;
 
         var profesionalId = body.ProfesionalId ?? options.Value.DefaultProfesionalId;
@@ -133,8 +140,16 @@ public static class TurnosEndpoints
                 return inicio < fFin && fin > fInicio;
             }))
         {
-            return HttpErrors.Conflict("Ese horario está reservado por un cliente fijo semanal.");
+            return HttpErrors.Conflict("Este horario no se encuentra disponible.");
         }
+
+        // Carrera entre dos clientes: chequear solape antes del INSERT (y el exclusion constraint cubre el resto).
+        var solapa = await db.Turnos.AsNoTracking().AnyAsync(t =>
+            t.ProfesionalId == profesionalId
+            && t.EstadoId != EstadoTurno.Cancelado
+            && t.Inicio < fin
+            && t.Fin > inicio, ct);
+        if (solapa) return HttpErrors.Conflict("Este horario no se encuentra disponible.");
 
         var turno = new Turno
         {
@@ -167,7 +182,7 @@ public static class TurnosEndpoints
         }
         catch (DbUpdateException ex) when (ex.Is(PostgresErrors.ExclusionViolation))
         {
-            return HttpErrors.Conflict("Ese horario ya está ocupado.");
+            return HttpErrors.Conflict("Este horario no se encuentra disponible.");
         }
 
         if (notificacion is not null)
@@ -250,7 +265,7 @@ public static class TurnosEndpoints
         }
         catch (DbUpdateException ex) when (ex.Is(PostgresErrors.ExclusionViolation))
         {
-            return HttpErrors.Conflict("Ese horario ya está ocupado.");
+            return HttpErrors.Conflict("Este horario no se encuentra disponible.");
         }
 
         if (resolvioPendiente) await NotificacionesFactory.MarcarLeidasPorTurnoAsync(db, turno.Id, ct);
@@ -287,33 +302,61 @@ public static class TurnosEndpoints
     private static async Task<Cliente> ObtenerOCrearCliente(
         BarberDbContext db,
         string nombre,
-        string email,
+        string? email,
         string? telefono,
         CancellationToken ct)
     {
-        var normalized = email.Trim().ToLowerInvariant();
-        var existente = await db.Clientes.FirstOrDefaultAsync(c => c.Email == normalized, ct);
-        if (existente is not null)
+        if (!string.IsNullOrWhiteSpace(email))
         {
-            // Si el email ya tiene cuenta, sus datos los edita solo el dueño desde "Mis datos".
-            var tieneCuenta = await db.ClienteCuentas.AnyAsync(c => c.ClienteId == existente.Id, ct);
-            if (!tieneCuenta)
+            var normalized = email.Trim().ToLowerInvariant();
+            var existente = await db.Clientes.FirstOrDefaultAsync(c => c.Email == normalized, ct);
+            if (existente is not null)
             {
-                existente.Nombre = nombre.Trim();
-                if (!string.IsNullOrWhiteSpace(telefono)) existente.Telefono = telefono.Trim();
+                // Si el email ya tiene cuenta, sus datos los edita solo el dueño desde "Mis datos".
+                var tieneCuenta = await db.ClienteCuentas.AnyAsync(c => c.ClienteId == existente.Id, ct);
+                if (!tieneCuenta)
+                {
+                    existente.Nombre = nombre.Trim();
+                    if (!string.IsNullOrWhiteSpace(telefono)) existente.Telefono = telefono.Trim();
+                }
+                return existente;
             }
-            return existente;
+
+            var conEmail = new Cliente
+            {
+                Id = Guid.NewGuid(),
+                Nombre = nombre.Trim(),
+                Email = normalized,
+                Telefono = telefono?.Trim()
+            };
+            db.Clientes.Add(conEmail);
+            return conEmail;
         }
 
-        var cliente = new Cliente
+        // Reserva del profesional sin email: placeholder único para satisfacer NOT NULL + unique.
+        var tel = telefono?.Trim() ?? "";
+        var digits = ContactValidation.DigitsOnly(tel);
+        var placeholder = digits.Length >= 8
+            ? $"pro-{digits}@navaja.local"
+            : $"pro-{Guid.NewGuid():N}@navaja.local";
+
+        var porPlaceholder = await db.Clientes.FirstOrDefaultAsync(c => c.Email == placeholder, ct);
+        if (porPlaceholder is not null)
+        {
+            porPlaceholder.Nombre = nombre.Trim();
+            porPlaceholder.Telefono = tel;
+            return porPlaceholder;
+        }
+
+        var sinEmail = new Cliente
         {
             Id = Guid.NewGuid(),
             Nombre = nombre.Trim(),
-            Email = normalized,
-            Telefono = telefono?.Trim()
+            Email = placeholder,
+            Telefono = string.IsNullOrWhiteSpace(tel) ? null : tel
         };
-        db.Clientes.Add(cliente);
-        return cliente;
+        db.Clientes.Add(sinEmail);
+        return sinEmail;
     }
 }
 
@@ -322,7 +365,7 @@ public record CrearTurnoRequest(
     TimeOnly Hora,
     Guid ServicioId,
     string ClienteNombre,
-    string ClienteEmail,
+    string? ClienteEmail,
     string? ClienteTelefono,
     Guid? ProfesionalId,
     string? Notas,

@@ -8,12 +8,17 @@ public static class ContactValidation
         @"^[^@\s]+@[^@\s]+\.[^@\s]{2,}$",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-    public static IResult? ValidateCliente(string? nombre, string? email, string? telefono, bool telefonoObligatorio = true)
+    public static IResult? ValidateCliente(
+        string? nombre,
+        string? email,
+        string? telefono,
+        bool telefonoObligatorio = true,
+        bool emailObligatorio = true)
     {
         if (string.IsNullOrWhiteSpace(nombre))
             return HttpErrors.Validation("El nombre del cliente es obligatorio.");
 
-        var emailError = ValidateEmail(email);
+        var emailError = ValidateEmail(email, required: emailObligatorio);
         if (emailError is not null) return HttpErrors.Validation(emailError);
 
         var phoneError = ValidatePhone(telefono, required: telefonoObligatorio);
@@ -22,9 +27,10 @@ public static class ContactValidation
         return null;
     }
 
-    public static string? ValidateEmail(string? email)
+    public static string? ValidateEmail(string? email, bool required = true)
     {
-        if (string.IsNullOrWhiteSpace(email)) return "El email del cliente es obligatorio.";
+        if (string.IsNullOrWhiteSpace(email))
+            return required ? "El email del cliente es obligatorio." : null;
         var trimmed = email.Trim();
         if (trimmed.Length > 120) return "El email es demasiado largo.";
         if (!EmailRegex.IsMatch(trimmed)) return "Ingresá un email válido (debe incluir @ y un dominio).";
