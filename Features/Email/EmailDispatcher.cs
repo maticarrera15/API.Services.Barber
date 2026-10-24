@@ -24,6 +24,12 @@ public class EmailDispatcher(
     {
         if (!sender.IsConfigured) return;
 
+        // Preferencias del salón: si el tipo está apagado, no se crea la fila.
+        var salon = turno.Salon ?? await db.Salones.AsNoTracking().FirstOrDefaultAsync(s => s.Id == turno.SalonId, ct);
+        if (salon is null) return;
+        if (tipo == NotificacionEmail.TipoConfirmacion && !salon.MailConfirmacion) return;
+        if (tipo == NotificacionEmail.TipoRecordatorio && !salon.MailRecordatorio) return;
+
         NotificacionEmail? fila = null;
         try
         {
@@ -31,12 +37,15 @@ public class EmailDispatcher(
                 .AnyAsync(n => n.TurnoId == turno.Id && n.Tipo == tipo, ct);
             if (existente) return;
 
+            var destinatario = turno.Cliente.Email.Trim().ToLowerInvariant();
+            if (destinatario.EndsWith("@navaja.local", StringComparison.OrdinalIgnoreCase)) return;
+
             fila = new NotificacionEmail
             {
                 Id = Guid.NewGuid(),
                 TurnoId = turno.Id,
                 Tipo = tipo,
-                Destinatario = turno.Cliente.Email.Trim().ToLowerInvariant(),
+                Destinatario = destinatario,
                 Estado = NotificacionEmail.EstadoPendiente
             };
             db.NotificacionesEmail.Add(fila);
@@ -120,6 +129,12 @@ public class EmailDispatcher(
         if (turno.Inicio <= DateTimeOffset.UtcNow) return "El turno ya pasó.";
         if (turno.Cliente.EmailRebotadoAt is not null) return "El email del cliente rebotó antes.";
         if (ContactValidation.ValidateEmail(fila.Destinatario) is not null) return "Email inválido.";
+        if (fila.Destinatario.EndsWith("@navaja.local", StringComparison.OrdinalIgnoreCase))
+            return "Cliente sin email real (reserva del profesional).";
+        if (fila.Tipo == NotificacionEmail.TipoConfirmacion && !turno.Salon.MailConfirmacion)
+            return "Mail de confirmación desactivado en preferencias.";
+        if (fila.Tipo == NotificacionEmail.TipoRecordatorio && !turno.Salon.MailRecordatorio)
+            return "Mail de recordatorio desactivado en preferencias.";
         return null;
     }
 }

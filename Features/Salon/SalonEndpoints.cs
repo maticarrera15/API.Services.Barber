@@ -50,6 +50,15 @@ public static class SalonEndpoints
         if (body.Telefono is not null) salon.Telefono = body.Telefono.Trim();
         if (body.Email is not null) salon.Email = body.Email.Trim();
         if (!string.IsNullOrWhiteSpace(body.Timezone)) salon.Timezone = body.Timezone.Trim();
+        if (body.MailConfirmacion is not null) salon.MailConfirmacion = body.MailConfirmacion.Value;
+        if (body.MailRecordatorio is not null) salon.MailRecordatorio = body.MailRecordatorio.Value;
+        if (body.MailWhatsappBtn is not null) salon.MailWhatsappBtn = body.MailWhatsappBtn.Value;
+        if (body.WspConfirmacion is not null) salon.WspConfirmacion = body.WspConfirmacion.Value;
+        if (body.WspRecordatorio is not null) salon.WspRecordatorio = body.WspRecordatorio.Value;
+        if (body.WspPlantillaConfirmacion is not null)
+            salon.WspPlantillaConfirmacion = SalonMapping.ClipPlantilla(body.WspPlantillaConfirmacion);
+        if (body.WspPlantillaRecordatorio is not null)
+            salon.WspPlantillaRecordatorio = SalonMapping.ClipPlantilla(body.WspPlantillaRecordatorio);
 
         var profesional = await db.Profesionales.FirstOrDefaultAsync(p => p.Id == principal.ProfesionalId, ct);
         if (profesional is not null)
@@ -70,7 +79,14 @@ public record ActualizarSalonRequest(
     string? Telefono,
     string? Email,
     string? Timezone,
-    string? NombreProfesional);
+    string? NombreProfesional,
+    bool? MailConfirmacion,
+    bool? MailRecordatorio,
+    bool? MailWhatsappBtn,
+    bool? WspConfirmacion,
+    bool? WspRecordatorio,
+    string? WspPlantillaConfirmacion,
+    string? WspPlantillaRecordatorio);
 
 public record SalonDto(
     Guid Id,
@@ -80,10 +96,30 @@ public record SalonDto(
     string? Ciudad,
     string? Telefono,
     string? Email,
-    string Timezone);
+    string Timezone,
+    bool MailConfirmacion,
+    bool MailRecordatorio,
+    bool MailWhatsappBtn,
+    bool WspConfirmacion,
+    bool WspRecordatorio,
+    string? WspPlantillaConfirmacion,
+    string? WspPlantillaRecordatorio);
 
 file static class SalonMapping
 {
+    private const int MaxPlantilla = 1500;
+
     public static SalonDto ToDto(this Domain.Salon s) =>
-        new(s.Id, s.Nombre, s.Slug, s.Direccion, s.Ciudad, s.Telefono, s.Email, s.Timezone);
+        new(s.Id, s.Nombre, s.Slug, s.Direccion, s.Ciudad, s.Telefono, s.Email, s.Timezone,
+            s.MailConfirmacion, s.MailRecordatorio, s.MailWhatsappBtn,
+            s.WspConfirmacion, s.WspRecordatorio,
+            s.WspPlantillaConfirmacion, s.WspPlantillaRecordatorio);
+
+    /// <summary>Vacío → null (vuelve al default). Recorta a MaxPlantilla.</summary>
+    public static string? ClipPlantilla(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        var t = value.Trim();
+        return t.Length <= MaxPlantilla ? t : t[..MaxPlantilla];
+    }
 }

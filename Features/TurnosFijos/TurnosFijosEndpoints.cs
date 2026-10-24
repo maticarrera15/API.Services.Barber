@@ -54,6 +54,9 @@ public static class TurnosFijosEndpoints
             if (!servicioOk) return HttpErrors.NotFound("Servicio no encontrado.");
         }
 
+        if (body.PrecioCentavos is < 0)
+            return HttpErrors.Validation("El precio no puede ser negativo.");
+
         var conflicto = await db.TurnosFijos.AnyAsync(
             t => t.ProfesionalId == principal.ProfesionalId
                 && t.Activo
@@ -74,6 +77,7 @@ public static class TurnosFijosEndpoints
             DiaSemana = body.DiaSemana,
             Hora = body.Hora,
             DuracionMin = body.DuracionMin ?? 45,
+            PrecioCentavos = body.PrecioCentavos,
             Activo = true,
             Notas = body.Notas?.Trim()
         };
@@ -113,6 +117,9 @@ public static class TurnosFijosEndpoints
             ct);
         if (conflicto) return HttpErrors.Conflict("Ya hay un turno fijo en ese día y horario.");
 
+        if (body.PrecioCentavos is < 0)
+            return HttpErrors.Validation("El precio no puede ser negativo.");
+
         entity.ServicioId = body.ServicioId;
         entity.ClienteNombre = body.ClienteNombre.Trim();
         entity.ClienteEmail = body.ClienteEmail.Trim().ToLowerInvariant();
@@ -120,6 +127,7 @@ public static class TurnosFijosEndpoints
         entity.DiaSemana = body.DiaSemana;
         entity.Hora = body.Hora;
         entity.DuracionMin = body.DuracionMin ?? entity.DuracionMin;
+        entity.PrecioCentavos = body.PrecioCentavos;
         entity.Notas = body.Notas?.Trim();
         if (body.Activo.HasValue) entity.Activo = body.Activo.Value;
 
@@ -164,6 +172,7 @@ public static class TurnosFijosEndpoints
         t.DiaSemana,
         t.Hora,
         t.DuracionMin,
+        t.PrecioCentavos ?? t.Servicio?.PrecioCentavos,
         t.Activo,
         t.Notas);
 }
@@ -176,6 +185,7 @@ public record GuardarTurnoFijoRequest(
     TimeOnly Hora,
     Guid? ServicioId,
     int? DuracionMin,
+    int? PrecioCentavos,
     string? Notas,
     bool? Activo);
 
@@ -191,5 +201,6 @@ public record TurnoFijoDto(
     short DiaSemana,
     TimeOnly Hora,
     int DuracionMin,
+    int? PrecioCentavos,
     bool Activo,
     string? Notas);

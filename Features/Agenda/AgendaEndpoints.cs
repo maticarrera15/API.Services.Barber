@@ -130,17 +130,11 @@ public static class AgendaEndpoints
 
             var dayStart = SalonTime.ToInstant(fecha, TimeOnly.MinValue);
             var dayEnd = SalonTime.ToInstant(fecha.AddDays(1), TimeOnly.MinValue);
-            var bloqueo = bloqueos.FirstOrDefault(b => b.Inicio < dayEnd && b.Fin > dayStart);
+            var bloqueosDia = bloqueos.Where(b => b.Inicio < dayEnd && b.Fin > dayStart).ToList();
 
             if (horario is null || !horario.Activo)
             {
                 dias.Add(new AgendaDiaDto(fecha, dow, false, "Día no laborable", []));
-                continue;
-            }
-
-            if (bloqueo is not null)
-            {
-                dias.Add(new AgendaDiaDto(fecha, dow, false, bloqueo.Motivo ?? "Agenda bloqueada", []));
                 continue;
             }
 
@@ -163,6 +157,14 @@ public static class AgendaEndpoints
 
                 var slotInicio = SalonTime.ToInstant(fecha, t);
                 var slotFin = slotInicio.AddMinutes(step);
+
+                // Excepción de horario (ej. "arranco a las 12"): no ofrecemos esos slots al cliente.
+                if (bloqueosDia.Any(b => b.Inicio < slotFin && b.Fin > slotInicio))
+                {
+                    t = finLocal;
+                    continue;
+                }
+
                 var ocupante = turnos.FirstOrDefault(x =>
                     x.Estado is { BloqueaSlot: true }
                     && x.Inicio < slotFin
@@ -187,7 +189,10 @@ public static class AgendaEndpoints
                 t = finLocal;
             }
 
-            dias.Add(new AgendaDiaDto(fecha, dow, true, null, slots));
+            var motivo = slots.Count == 0 && bloqueosDia.Count > 0
+                ? (bloqueosDia[0].Motivo ?? "Agenda bloqueada")
+                : null;
+            dias.Add(new AgendaDiaDto(fecha, dow, slots.Count > 0, motivo, slots));
         }
 
         return dias;

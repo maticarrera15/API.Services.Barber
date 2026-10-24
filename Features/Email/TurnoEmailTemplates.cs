@@ -73,14 +73,16 @@ public static class TurnoEmailTemplates
                 FechaCorta: SalonTime.FormatCorto(t.Inicio),
                 Hora: SalonTime.ToHora(t.Inicio).ToString("HH\\:mm"),
                 Servicio: t.Servicio.Nombre,
-                Profesional: t.Profesional.Nombre,
+                Profesional: PersonNames.First(t.Profesional.Nombre),
                 Precio: FormatPrecio(t.PrecioCentavos),
                 Direccion: direccion.Length > 0 ? direccion : null,
                 MapaUrl: direccion.Length > 0
                     ? $"https://www.google.com/maps/search/?api=1&query={Uri.EscapeDataString($"{t.Salon.Nombre}, {direccion}")}"
                     : null,
-                WhatsappUrl: wa is null ? null : $"https://api.whatsapp.com/send?phone={wa}",
-                Telefono: t.Salon.Telefono);
+                WhatsappUrl: t.Salon.MailWhatsappBtn && wa is not null
+                    ? $"https://api.whatsapp.com/send?phone={wa}"
+                    : null,
+                Telefono: t.Salon.MailWhatsappBtn ? t.Salon.Telefono : null);
         }
     }
 

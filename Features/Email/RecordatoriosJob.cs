@@ -65,6 +65,7 @@ public class RecordatoriosJob(BarberDbContext db, EmailDispatcher dispatcher, IL
             .Where(t => t.EstadoId == EstadoTurno.Confirmado
                 && t.Inicio > ahora
                 && t.Inicio <= limite
+                && t.Salon.MailRecordatorio
                 && t.Cliente.EmailRebotadoAt == null
                 && !db.NotificacionesEmail.Any(n => n.TurnoId == t.Id && n.Tipo == NotificacionEmail.TipoRecordatorio))
             .OrderBy(t => t.Inicio)
