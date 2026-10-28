@@ -92,6 +92,7 @@ public record SalonDto(
     Guid Id,
     string Nombre,
     string Slug,
+    string? Descripcion,
     string? Direccion,
     string? Ciudad,
     string? Telefono,
@@ -110,7 +111,7 @@ file static class SalonMapping
     private const int MaxPlantilla = 1500;
 
     public static SalonDto ToDto(this Domain.Salon s) =>
-        new(s.Id, s.Nombre, s.Slug, s.Direccion, s.Ciudad, s.Telefono, s.Email, s.Timezone,
+        new(s.Id, s.Nombre, s.Slug, s.Descripcion, s.Direccion, s.Ciudad, s.Telefono, s.Email, s.Timezone,
             s.MailConfirmacion, s.MailRecordatorio, s.MailWhatsappBtn,
             s.WspConfirmacion, s.WspRecordatorio,
             s.WspPlantillaConfirmacion, s.WspPlantillaRecordatorio);

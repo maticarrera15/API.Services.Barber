@@ -16,6 +16,7 @@ public static class AuthEndpoints
         group.MapPost("/register", Registrar).RequireRateLimiting(ClienteAuthEndpoints.RateLimitPolicy);
         group.MapPost("/login", Login).RequireRateLimiting(ClienteAuthEndpoints.RateLimitPolicy);
         group.MapGet("/me", Me).RequireAuthorization();
+        group.MapPut("/me", ActualizarMe).RequireAuthorization();
 
         return app;
     }
@@ -132,6 +133,33 @@ public static class AuthEndpoints
             : Results.Ok(usuario.ToMe(usuario.Profesional));
     }
 
+    private static async Task<IResult> ActualizarMe(
+        ClaimsPrincipal user,
+        ActualizarMeRequest body,
+        BarberDbContext db,
+        CancellationToken ct)
+    {
+        var denied = CurrentUser.Require(user, out var principal);
+        if (denied is not null) return denied;
+
+        var nombre = body.Nombre?.Trim() ?? "";
+        if (string.IsNullOrWhiteSpace(nombre)) return HttpErrors.Validation("El nombre es obligatorio.");
+
+        var usuario = await db.Usuarios
+            .Include(u => u.Profesional)
+            .FirstOrDefaultAsync(u => u.Id == principal.UsuarioId && u.Activo, ct);
+        if (usuario is null) return HttpErrors.Unauthorized("Sesión inválida.");
+
+        var profesional = usuario.Profesional;
+        profesional.Nombre = nombre;
+        profesional.Telefono = string.IsNullOrWhiteSpace(body.Telefono) ? null : body.Telefono.Trim();
+        profesional.Iniciales = Iniciales(nombre);
+        profesional.UpdatedAt = DateTimeOffset.UtcNow;
+
+        await db.SaveChangesAsync(ct);
+        return Results.Ok(usuario.ToMe(profesional));
+    }
+
     private static void AgregarHorarioDefault(BarberDbContext db, Guid salonId)
     {
         for (short d = 0; d <= 6; d++)
@@ -180,16 +208,19 @@ public record LoginRequest(string Email, string Password);
 
 public record AuthResponse(string Token, DateTimeOffset ExpiresAt, MeDto Usuario);
 
+public record ActualizarMeRequest(string Nombre, string? Telefono);
+
 public record MeDto(
     Guid UsuarioId,
     Guid ProfesionalId,
     Guid SalonId,
     string Email,
     string Nombre,
+    string? Telefono,
     string Rol);
 
 file static class AuthMapping
 {
     public static MeDto ToMe(this Usuario u, Profesional p) =>
-        new(u.Id, p.Id, p.SalonId, u.Email, p.Nombre, u.Rol);
+        new(u.Id, p.Id, p.SalonId, u.Email, p.Nombre, p.Telefono, u.Rol);
 }
